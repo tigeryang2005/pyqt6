@@ -17,16 +17,17 @@ client = influxdb_client.InfluxDBClient(url=url, token=token, org=org)
 write_api = client.write_api(write_options=ASYNCHRONOUS)
 points = []
 # now_ns = int((datetime.now() - timedelta(minutes=10)).timestamp() * 1e9)  # 微秒级时间戳乘以1e6 到纳秒级就乘以1e9
-for value in range(10):
+for value in range(500000):
     print(value)
-    now_ns = int((datetime.now() - timedelta(minutes=6, microseconds=1)).timestamp() * 1e9)  # 微秒级时间戳乘以1e6 到纳秒级就乘以1e9
+    # 微秒级时间戳乘以1e6 到纳秒级就乘以1e9
+    now_ns = int((datetime.now() - timedelta(minutes=10, microseconds=-value)).timestamp() * 1e9)
     # point = Point(measurement).tag("sensor", "sensor1").field("temperature", value).time(
     #     now_ns, write_precision=WritePrecision.NS)
-    temp = random.randint(0, 10)
+    # temp = random.randint(0, 1000)
     point = {
         "measurement": measurement,
         "tags": {"sensor": "2号传感器"},
-        "fields": {"temperature": temp},
+        "fields": {"temperature": value, "转数": value/2},
         "time": now_ns
     }
     print(point)
