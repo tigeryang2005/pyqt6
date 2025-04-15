@@ -25,8 +25,9 @@ class DragTreeWidget(QTreeWidget):
             self.addTopLevelItem(item)
 
     def mousePressEvent(self, event):
+        super().mousePressEvent(event)
         if event.button() == Qt.MouseButton.LeftButton:
-            super().mousePressEvent(event)
+
             item = self.currentItem()
             self.drag_source_item = self.currentItem()
             print("拖拽源项:", self.drag_source_item.text(0) if self.drag_source_item else "无")
@@ -87,7 +88,7 @@ class GraphicsView(QGraphicsView):
         #     print(e)
 
         # 绘制带圆角的蓝色矩形
-
+        # TODO 根据不同的节点名称绘制不同的图形 下面这个不加try实现不了拖拽后画矩形也不报错 不知道为什么
         try:
             rect = self.scene.addRect(
                 pos.x() - 60, pos.y() - 40, 120, 80,
@@ -100,6 +101,7 @@ class GraphicsView(QGraphicsView):
             font = QFont("Arial", 12)
             text_item = self.scene.addSimpleText(event.mimeData().text(), font)
             text_item.setDefaultTextColor(Qt.GlobalColor.black)
+            print(123)
 
             # 精确计算文本位置
             text_rect = text_item.boundingRect()

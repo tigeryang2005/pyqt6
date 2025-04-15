@@ -27,9 +27,9 @@
    <widget class="QTabWidget" name="tabWidget">
     <property name="geometry">
      <rect>
-      <x>20</x>
+      <x>10</x>
       <y>0</y>
-      <width>311</width>
+      <width>321</width>
       <height>811</height>
      </rect>
     </property>
@@ -46,9 +46,9 @@
      <widget class="QTreeWidget" name="treeWidget">
       <property name="geometry">
        <rect>
-        <x>-20</x>
+        <x>0</x>
         <y>0</y>
-        <width>331</width>
+        <width>311</width>
         <height>781</height>
        </rect>
       </property>
