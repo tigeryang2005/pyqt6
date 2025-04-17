@@ -6,11 +6,11 @@ import influxdb_client
 from influxdb_client import Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS
 
-token = "d3VP9A48seA-pnvdr7O-q4GGYJ2sFS1xU5ZU2iLHmVGupzydHeNGff3tPCxiUVMIDH3XPowYf99S3fGgX33wBA=="
-org = "ada"
+token = "kDKf6ACTpykjjlX-4TsgmpwcU1MAae7AY6wM91-10wv2UxDPlnY2qZyVfmDT5ld0ytD_w0IC4cRxVn4RuhzFzQ=="
+org = "my-org"
 url = "http://localhost:8086"
-bucket = "init1"
-measurement = "measurement"
+bucket = "my-bucket"
+measurement = "experiment"
 
 client = influxdb_client.InfluxDBClient(url=url, token=token, org=org)
 
@@ -20,7 +20,7 @@ points = []
 for value in range(500000):
     print(value)
     # 微秒级时间戳乘以1e6 到纳秒级就乘以1e9
-    now_ns = int((datetime.now() - timedelta(minutes=10, microseconds=-value)).timestamp() * 1e9)
+    now_ns = int((datetime.now() - timedelta(minutes=3, microseconds=-value)).timestamp() * 1e9)
     # point = Point(measurement).tag("sensor", "sensor1").field("temperature", value).time(
     #     now_ns, write_precision=WritePrecision.NS)
     # temp = random.randint(0, 1000)
@@ -34,7 +34,7 @@ for value in range(500000):
     points.append(point)
 # print(points)
 try:
-    write_api.write(bucket=bucket, org="ada", record=points, write_precision=WritePrecision.NS)
+    write_api.write(bucket=bucket, org=org, record=points, write_precision=WritePrecision.NS)
 except Exception as e:
     print(e)
 # time.sleep(1)  # separate points by 1 second
