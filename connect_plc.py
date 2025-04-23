@@ -1,13 +1,25 @@
 import os
 import time
+from datetime import datetime, timedelta
 from multiprocessing import Pool
 from concurrent.futures import ThreadPoolExecutor
 from pymodbus.client import ModbusTcpClient
+import influxdb_client
+from influxdb_client import Point, WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS
 
+token = "kDKf6ACTpykjjlX-4TsgmpwcU1MAae7AY6wM91-10wv2UxDPlnY2qZyVfmDT5ld0ytD_w0IC4cRxVn4RuhzFzQ=="
+org = "my-org"
+url = "http://localhost:8086"
+bucket = "my-bucket"
+measurement = "experiment"
 # 连接PLC
-plc_ip = '192.168.18.49'
+plc_ip = '192.168.1.88'
 plc_port = 502
 client_plc = ModbusTcpClient(host=plc_ip, port=plc_port, timeout=1)
+
+client = influxdb_client.InfluxDBClient(url=url, token=token, org=org)
+write_api = client.write_api(write_options=ASYNCHRONOUS)
 
 
 def read_plc(_):
@@ -17,7 +29,26 @@ def read_plc(_):
                 start_time = time.time_ns()
                 # 批量读取寄存器，例如从地址0x0000开始读取125个寄存器 没开线程
                 result = client_plc.read_holding_registers(address=0, count=125, slave=1)  # 根据你的需求调整起始地址和数量
+                points = []
+                now_ns = int(datetime.now() .timestamp() * 1e9)
+                temp = list(range(125))
+                fields = dict(zip(temp, result.registers))
+                # for r in result.registers:
+                #     point = {
+                #         "measurement": measurement,
+                #         "tags": {"sensor": "汇川PLC"},
+                #         "fields": {"temperature": value, "转数": value / 2},
+                #         "time": now_ns
+                #     }
+                point = {
+                    "measurement": measurement,
+                    "tags": {"sensor": "汇川PLC"},
+                    "fields": fields,
+                    "time": now_ns
+                }
+                write_api.write(bucket=bucket, org=org, record=point, write_precision=WritePrecision.NS)
                 elapsed = round((time.time_ns() - start_time) / 1e6, 4)  # 纳秒换算成毫秒
+
                 print(f"modbus获取一次耗时{elapsed}毫秒")  # 不开线程情况下约15毫秒  后面尝试eip、opcua协议
                 if not result.isError():
                     # if 0 not in result.registers:
