@@ -2,14 +2,101 @@ from opcua import Client
 import influxdb_client
 from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS
 from asyncua import Client as AsyncClient
-# opcua同步连接plc
+import logging
+import os
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+cur_path = os.path.dirname(os.path.realpath(__file__))  # log_path是存放日志的路径
+log_path = os.path.join(os.path.dirname(cur_path), 'logs')
+if not os.path.exists(log_path):
+    os.mkdir(log_path)  # 如果不存在这个logs文件夹，就自动创建一个
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': True,
+    'formatters': {
+        # 日志格式
+        'standard': {
+            'format': '[%(asctime)s] [%(filename)s:%(lineno)d] [%(module)s:%(funcName)s] '
+                      '[%(levelname)s]- %(message)s'},
+        'simple': {  # 简单格式
+            'format': '%(levelname)s %(message)s'
+        },
+    },
+    # 过滤
+    'filters': {
+    },
+    # 定义具体处理日志的方式
+    'handlers': {
+        # 默认记录所有日志
+        'default': {
+            'level': 'DEBUG',
+            'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
+            # 'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(log_path, 'all.log'),
+            'maxBytes': 1024 * 1024 * 1,  # 文件大小
+            'backupCount': 5,  # 备份数
+            'formatter': 'standard',  # 输出格式
+            'encoding': 'utf-8',  # 设置默认编码，否则打印出来汉字乱码
+        },
+        # 输出错误日志
+        'error': {
+            'level': 'ERROR',
+            # 'class': 'logging.handlers.RotatingFileHandler',
+            'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
+            'filename': os.path.join(log_path, 'error.log'),
+            'maxBytes': 1024 * 1024 * 1,  # 文件大小
+            'backupCount': 5,  # 备份数
+            'formatter': 'standard',  # 输出格式
+            'encoding': 'utf-8',  # 设置默认编码
+        },
+        # 控制台输出
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard'
+        },
+        # 输出info日志
+        'info': {
+            'level': 'INFO',
+            # 'class': 'logging.handlers.RotatingFileHandler',
+            'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
+            'filename': os.path.join(log_path, 'info.log'),
+            'maxBytes': 1024 * 1024 * 1,
+            'backupCount': 5,
+            'formatter': 'standard',
+            'encoding': 'utf-8',  # 设置默认编码
+        },
+    },
+    # 配置用哪几种 handlers 来处理日志
+    'loggers': {
+        # 类型 为 django 处理所有类型的日志， 默认调用
+        'django': {
+            'handlers': ['default', 'console'],
+            'level': 'INFO',
+            'propagate': False
+        },
+        # # log 调用时需要当作参数传入
+        'log': {
+            'handlers': ['error', 'info', 'console', 'default', 'debug'],
+            'level': 'DEBUG',
+            'propagate': True
+        },
+    }
+}
+
+
 plc_opcua_url = "opc.tcp://192.168.1.88:4840"
 node_id = "ns=4;s=变量表|count"
 
+# opcua同步连接plc
 opcua_client = Client(plc_opcua_url)
-opcua_client.connect()
+opcua_client.connect_socket()
+
 # opcua异步连接plc
 opcua_async_client = AsyncClient(plc_opcua_url)
+opcua_async_client.connect_socket()
 
 token = "kDKf6ACTpykjjlX-4TsgmpwcU1MAae7AY6wM91-10wv2UxDPlnY2qZyVfmDT5ld0ytD_w0IC4cRxVn4RuhzFzQ=="
 org = "my-org"
@@ -18,4 +105,4 @@ bucket = "my-bucket"
 measurement = "experiment"
 
 influx_client = influxdb_client.InfluxDBClient(url=url, token=token, org=org)
-write_api = influx_client.write_api(write_options=SYNCHRONOUS)
+write_api = influx_client.write_api(write_options=ASYNCHRONOUS)

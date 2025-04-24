@@ -19,7 +19,7 @@ plc_port = 502
 client_plc = ModbusTcpClient(host=plc_ip, port=plc_port, timeout=1)
 
 client = influxdb_client.InfluxDBClient(url=url, token=token, org=org)
-write_api = client.write_api(write_options=ASYNCHRONOUS)
+write_api = client.write_api(write_options=SYNCHRONOUS)
 
 
 def read_plc(_):
