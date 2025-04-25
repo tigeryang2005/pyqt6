@@ -3,6 +3,7 @@ import influxdb_client
 from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS
 from asyncua import Client as AsyncClient
 import logging
+import logging.config
 import os
 from pathlib import Path
 
@@ -32,8 +33,8 @@ LOGGING = {
         # 默认记录所有日志
         'default': {
             'level': 'DEBUG',
-            'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
-            # 'class': 'logging.handlers.RotatingFileHandler',
+            # 'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(log_path, 'all.log'),
             'maxBytes': 1024 * 1024 * 1,  # 文件大小
             'backupCount': 5,  # 备份数
@@ -43,8 +44,8 @@ LOGGING = {
         # 输出错误日志
         'error': {
             'level': 'ERROR',
-            # 'class': 'logging.handlers.RotatingFileHandler',
-            'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
+            # 'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
             'filename': os.path.join(log_path, 'error.log'),
             'maxBytes': 1024 * 1024 * 1,  # 文件大小
             'backupCount': 5,  # 备份数
@@ -60,8 +61,8 @@ LOGGING = {
         # 输出info日志
         'info': {
             'level': 'INFO',
-            # 'class': 'logging.handlers.RotatingFileHandler',
-            'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
+            # 'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
             'filename': os.path.join(log_path, 'info.log'),
             'maxBytes': 1024 * 1024 * 1,
             'backupCount': 5,
@@ -74,19 +75,19 @@ LOGGING = {
         # 类型 为 django 处理所有类型的日志， 默认调用
         'django': {
             'handlers': ['default', 'console'],
-            'level': 'INFO',
-            'propagate': False
+            'level': 'DEBUG',
+            'propagate': True
         },
         # # log 调用时需要当作参数传入
         'log': {
-            'handlers': ['error', 'info', 'console', 'default', 'debug'],
+            'handlers': ['error', 'info', 'console', 'default',],
             'level': 'DEBUG',
             'propagate': True
         },
     }
 }
-
-
+logging.config.dictConfig(LOGGING)
+logger = logging.getLogger('log')
 plc_opcua_url = "opc.tcp://192.168.1.88:4840"
 node_id = "ns=4;s=变量表|count"
 
