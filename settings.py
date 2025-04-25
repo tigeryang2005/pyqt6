@@ -92,7 +92,6 @@ node_id = "ns=4;s=变量表|count"
 
 # opcua同步连接plc
 opcua_client = Client(plc_opcua_url)
-opcua_client.connect_socket()
 
 # opcua异步连接plc
 opcua_async_client = AsyncClient(plc_opcua_url)
