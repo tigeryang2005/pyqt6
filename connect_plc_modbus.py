@@ -45,7 +45,7 @@ def read_plc_modbus(_):
                 if len(points) == COUNT:
                     client_plc.close()
                     total_time = round(time.time_ns() - init_time, 4) / 1e6  # 毫秒
-                    result = f"共耗时{total_time}毫秒即{round(total_time/60000, 4)},平均连接一次耗时{round(total_time/COUNT, 4)}毫秒"
+                    result = f"共耗时{total_time}毫秒即{round(total_time/60000, 4)}分,平均连接一次耗时{round(total_time/COUNT, 4)}毫秒"
                     logger.info(result)
                     points.append(result)
                     points.append(f"总共超时次数：{error_times}")
