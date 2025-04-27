@@ -89,7 +89,7 @@ LOGGING = {
 logging.config.dictConfig(LOGGING)
 logger = logging.getLogger('log')
 plc_opcua_url = "opc.tcp://192.168.1.88:4840"
-node_id = "ns=4;s=变量表|count"
+node_id = "ns=4;s=变量表"
 
 # opcua同步连接plc
 opcua_client = Client(plc_opcua_url)
