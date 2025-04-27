@@ -48,7 +48,7 @@ def read_plc_modbus(_):
                     result = f"共耗时{total_time}毫秒即{round(total_time/60000, 4)}分,平均连接一次耗时{round(total_time/COUNT, 4)}毫秒"
                     logger.info(result)
                     points.append(result)
-                    points.append(f"总共超时次数：{error_times}")
+                    points.append(f"总共超时次数：{error_times}\n")
                     with open("output_modbus.txt", "a", encoding='utf-8') as f:
                         f.write('\n'.join(map(str, points)))
                     break
