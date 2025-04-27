@@ -24,17 +24,13 @@ client_plc = ModbusTcpClient(host=plc_ip, port=plc_port, timeout=1, retries=10)
 client = influxdb_client.InfluxDBClient(url=url, token=token, org=org)
 write_api = client.write_api(write_options=SYNCHRONOUS)
 
-COUNT = 30
+COUNT = 60000
 
 
 def read_plc_modbus(_):
     points = []
     init_time = time.time_ns()
-    logger.warning(111)
-    logger.debug(222)
-    logger.error(333)
-    logger.info(444)
-    logger.critical(555)
+    error_times = 0
     if client_plc.connect():
         while True:
             try:
@@ -44,16 +40,17 @@ def read_plc_modbus(_):
                 # time.sleep(0.003)
                 end_time = round((time.time_ns() - start_time) / 1e6, 4)  # 纳秒换算成毫秒
                 point = {datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"): f"每次获取耗时{end_time}毫秒，值：{result.registers[3]}"}
-                points.append(point)
-                print(point, len(points))
-
+                points.append(json.dumps(point, ensure_ascii=False))
+                logger.info(f"{json.dumps(point, ensure_ascii=False)} 当前获取{len(points)}个")
                 if len(points) == COUNT:
-                    print(f"共耗时{round((time.time_ns() - init_time) / 1e6, 4)}毫秒")
-                    with open("output_modbus.txt", "w") as f:
-                        for item in points:
-                            for key, value in item.items():
-                                data = json.dumps(value, ensure_ascii=False)
-                                f.write(f"{key},{data}\n")
+                    client_plc.close()
+                    total_time = (f"共耗时{round((time.time_ns() - init_time) / 1e6, 4)}毫秒,\
+                    平均连接一次耗时{round((time.time_ns() - init_time) / 1e6 / COUNT, 4)}")
+                    logger.info(total_time)
+                    points.append(total_time)
+                    points.append(f"总共超时次数：{error_times}")
+                    with open("output_modbus.txt", "a", encoding='utf-8') as f:
+                        f.write('\n'.join(map(str, points)))
                     break
                 # points = []
                 # now_ns = int(datetime.now() .timestamp() * 1e9)
@@ -88,7 +85,9 @@ def read_plc_modbus(_):
                 #     time.sleep(sleep_time * 1e9)
                 #     print(f"sleep time:{sleep_time}纳秒")
             except Exception as e:
-                print("报错信息", e)
+                # print("报错信息", e)
+                logger.error(e)
+                error_times += 1
             finally:
                 # 确保在程序结束时关闭连接
                 client_plc.close()
@@ -107,5 +106,4 @@ if __name__ == '__main__':
     # with ThreadPoolExecutor(max_workers=100) as executor:
     #     # while True:
     #     executor.map(read_plc, [1])
-    logger.error(133)
     read_plc_modbus(None)
