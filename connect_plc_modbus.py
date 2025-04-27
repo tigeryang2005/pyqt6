@@ -24,7 +24,7 @@ client_plc = ModbusTcpClient(host=plc_ip, port=plc_port, timeout=1, retries=10)
 client = influxdb_client.InfluxDBClient(url=url, token=token, org=org)
 write_api = client.write_api(write_options=SYNCHRONOUS)
 
-COUNT = 60000
+COUNT = 60
 
 
 def read_plc_modbus(_):
@@ -44,48 +44,15 @@ def read_plc_modbus(_):
                 logger.info(f"{json.dumps(point, ensure_ascii=False)} 当前获取{len(points)}个")
                 if len(points) == COUNT:
                     client_plc.close()
-                    total_time = (f"共耗时{round((time.time_ns() - init_time) / 1e6, 4)}毫秒,\
-                    平均连接一次耗时{round((time.time_ns() - init_time) / 1e6 / COUNT, 4)}")
-                    logger.info(total_time)
-                    points.append(total_time)
+                    total_time = round(time.time_ns() - init_time, 4) / 1e6
+                    result = f"共耗时{total_time}毫秒即{round(total_time/6000, 4)}分,平均连接一次耗时{round(total_time/COUNT, 4)}毫秒"
+                    logger.info(result)
+                    points.append(result)
                     points.append(f"总共超时次数：{error_times}")
                     with open("output_modbus.txt", "a", encoding='utf-8') as f:
                         f.write('\n'.join(map(str, points)))
                     break
-                # points = []
-                # now_ns = int(datetime.now() .timestamp() * 1e9)
-                # temp = list(range(125))
-                # fields = dict(zip(temp, result.registers))
-                # # for r in result.registers:
-                # #     point = {
-                # #         "measurement": measurement,
-                # #         "tags": {"sensor": "汇川PLC"},
-                # #         "fields": {"temperature": value, "转数": value / 2},
-                # #         "time": now_ns
-                # #     }
-                # point = {
-                #     "measurement": measurement,
-                #     "tags": {"sensor": "汇川PLC"},
-                #     "fields": fields,
-                #     "time": now_ns
-                # }
-                # write_api.write(bucket=bucket, org=org, record=point, write_precision=WritePrecision.NS)
-                # elapsed = round((time.time_ns() - start_time) / 1e6, 4)  # 纳秒换算成毫秒
-                #
-                # print(f"modbus获取一次耗时{elapsed}毫秒")  # 不开线程情况下约15毫秒  后面尝试eip、opcua协议
-                # if not result.isError():
-                #     # if 0 not in result.registers:
-                #     print("读取成功：", result.registers)
-                # else:
-                #     print("读取失败：", result)
-                # 计算耗时并等待剩余时间
-
-                # sleep_time = max(0, 1 * 1e9 - elapsed)  # 确保不累积延迟
-                # if sleep_time > 0:
-                #     time.sleep(sleep_time * 1e9)
-                #     print(f"sleep time:{sleep_time}纳秒")
             except Exception as e:
-                # print("报错信息", e)
                 logger.error(e)
                 error_times += 1
             finally:
@@ -96,14 +63,4 @@ def read_plc_modbus(_):
 
 
 if __name__ == '__main__':
-    # 多进程
-    # pool_size = os.cpu_count() * 2
-    # with Pool(pool_size) as pool:
-    #     # while True:
-    #     pool.map(read_plc, list(range(1)))
-
-    # 多线程
-    # with ThreadPoolExecutor(max_workers=100) as executor:
-    #     # while True:
-    #     executor.map(read_plc, [1])
     read_plc_modbus(None)
