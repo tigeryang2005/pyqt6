@@ -36,7 +36,7 @@ LOGGING = {
             # 'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(log_path, 'all.log'),
-            'maxBytes': 1024 * 1024 * 1,  # 文件大小
+            'maxBytes': 1024 * 1024 * 500,  # 文件大小
             'backupCount': 5,  # 备份数
             'formatter': 'standard',  # 输出格式
             'encoding': 'utf-8',  # 设置默认编码，否则打印出来汉字乱码
@@ -47,7 +47,7 @@ LOGGING = {
             'class': 'logging.handlers.RotatingFileHandler',
             # 'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
             'filename': os.path.join(log_path, 'error.log'),
-            'maxBytes': 1024 * 1024 * 1,  # 文件大小
+            'maxBytes': 1024 * 1024 * 100,  # 文件大小
             'backupCount': 5,  # 备份数
             'formatter': 'standard',  # 输出格式
             'encoding': 'utf-8',  # 设置默认编码
@@ -64,7 +64,7 @@ LOGGING = {
             'class': 'logging.handlers.RotatingFileHandler',
             # 'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
             'filename': os.path.join(log_path, 'info.log'),
-            'maxBytes': 1024 * 1024 * 1,
+            'maxBytes': 1024 * 1024 * 100,
             'backupCount': 5,
             'formatter': 'standard',
             'encoding': 'utf-8',  # 设置默认编码
@@ -80,7 +80,7 @@ LOGGING = {
         },
         # # log 调用时需要当作参数传入
         'log': {
-            'handlers': ['error', 'info', 'console', 'default',],
+            'handlers': ['error', 'info', 'console', 'default'],
             'level': 'DEBUG',
             'propagate': True
         },
