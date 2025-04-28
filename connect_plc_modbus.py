@@ -30,6 +30,7 @@ def read_plc_modbus(_):
     init_time = time.time_ns()
     error_times = 0
     if client_plc.connect():
+
         while True:
             try:
                 start_time = time.time_ns()
@@ -37,13 +38,14 @@ def read_plc_modbus(_):
                 result = client_plc.read_holding_registers(address=0, count=125, slave=1)  # 根据你的需求调整起始地址和数量
                 # time.sleep(0.003)
                 end_time = round((time.time_ns() - start_time) / 1e6, 4)  # 纳秒换算成毫秒
-                point = {datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"): f"每次获取耗时{end_time}毫秒，值：{result.registers[1], result.registers[2], result.registers[3], result.registers[4], result.registers[8]}"}
-                points.append(json.dumps(point, ensure_ascii=False))
-                # logger.info(f"{json.dumps(point, ensure_ascii=False)} 当前获取{len(points)}个")
+                result_tostring = ','.join(map(str, result.registers))
+                point = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')} 每次获取耗时{end_time}毫秒,当前获取个数：{len(points)} 值为:{result_tostring}"
+                # point = {f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')} 每次获取耗时{end_time}毫秒,
+                # 值为:": result.registers} logger.debug(point)
+                points.append(point)
                 if len(points) == COUNT:
-                    client_plc.close()
                     total_time = round(time.time_ns() - init_time, 4) / 1e6  # 毫秒
-                    result = f"共耗时{total_time}毫秒即{round(total_time/60000, 4)}分,平均连接一次耗时{round(total_time/COUNT, 4)}毫秒"
+                    result = f"{COUNT}次连接共耗时{total_time}毫秒即{round(total_time/60000, 4)}分,平均连接一次耗时{round(total_time/COUNT, 4)}毫秒"
                     logger.info(result)
                     points.append(result)
                     points.append(f"总共超时次数：{error_times}\n")
