@@ -13,7 +13,7 @@ from Upper_Computer.settings import node_id, measurement, write_api, bucket, org
 class SubDataChangeHandler(SubHandler):
     def datachange_notification(self, node, val, data):
         output = f"{node.nodeid}: {val}"
-        logging.info(output)
+        logger.info(output)
 
 
 def get_value_subdata_change():
@@ -26,74 +26,42 @@ def get_value_subdata_change():
 
 
 def get_values_sync_client():
-    init_time = time.time_ns()
-    error_times = 0
-    points = []
-    max_retry_times = 10
     opcua_client.connect()
-
-    while True and error_times < max_retry_times:
-        try:
-            start_time = time.time_ns()
-            nodes = opcua_client.get_node(node_id).get_children()
-            values = opcua_client.get_values(nodes)
-            end_time = round((time.time_ns() - start_time) / 1e6, 4)  # 纳秒换算成毫秒
-            result_tostring = ','.join(map(str, values))
-            point = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}: 每次获取耗时{end_time}毫秒，当前获取个数:{len(points)} 值：{values}"
-            points.append(point)
-            logger.info(point)
-            if len(points) == COUNT:
-                total_time = time.time_ns() - round(time.time_ns() - init_time, 4) / 1e6  # 毫秒
-                result = f"{COUNT}次连接共耗时{total_time}毫秒即{round(total_time / 60000, 4)}分,平均连接一次耗时{round(total_time / COUNT, 4)}毫秒"
-                logger.info(result)
-                points.append(result)
-                points.append(f"总共超时次数：{error_times}\n")
-                with open("output_opc_ua.txt", "a", encoding='utf-8') as f:
-                    f.write('\n'.join(map(str, points)))
-                break
-        except Exception as e:
-            logger.error(e)
-            error_times += 1
-        finally:
-            opcua_client.disconnect()
+    nodes = opcua_client.get_node(node_id).get_children()
+    logger.info(nodes)
+    values = opcua_client.get_values(nodes)
+    logger.info(values)
+    time.sleep(0.3)
 
 
 # 异步每次24ms 但是plc会返回too many sessions 拒绝请求
 async def get_values_async_client():
-    init_time = time.time_ns()
-    error_times = 0
-    points = []
-    max_retry_times = 10
-    while True and error_times < max_retry_times:
+    start_time = time.time_ns()
+    await opcua_async_client.connect()
+
+    nodes = await opcua_async_client.get_node(node_id).get_children()
+    values = await opcua_async_client.read_values(nodes)
+    end_time = round((time.time_ns() - start_time) / 1e6, 4)  # 纳秒换算成毫秒
+    result_tostring = ','.join(map(str, values))
+    point = {datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"): f"每次获取耗时{end_time}毫秒 值：{values}"}
+    logger.info(point)
+
+
+async def main_loop():
+    """主循环管理"""
+    while True:
         try:
-            await opcua_async_client.connect()
-            start_time = time.time_ns()
-            nodes = await opcua_async_client.get_node(node_id).get_children()
-            values = await opcua_async_client.read_values(nodes)
-            end_time = round((time.time_ns() - start_time) / 1e6, 4)  # 纳秒换算成毫秒
-            result_tostring = ','.join(map(str, values))
-            point = {datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S.%f"): f"每次获取耗时{end_time}毫秒，当前获取个数:{len(points)} 值：{values}"}
-            logger.info(point)
-            points.append(point)
-            # print(len(points))
-            if len(points) == COUNT:
-                total_time = time.time_ns() - round(time.time_ns() - init_time, 4) / 1e6  # 毫秒
-                result = f"{COUNT}次连接共耗时{total_time}毫秒即{round(total_time / 60000, 4)}分,平均连接一次耗时{round(total_time / COUNT, 4)}毫秒"
-                logging.info(result)
-                points.append(result)
-                points.append(f"总共超时次数：{error_times}\n")
-                with open("output_opc_ua_async.txt", "a", encoding='utf-8') as f:
-                    f.write('\n'.join(map(str, points)))
-            break
+            await get_values_async_client()
         except Exception as e:
-            logger.error(e)
-            error_times += 1
-        finally:
-            await opcua_async_client.disconnect()
+            logger.error(f"主循环异常: {str(e)}")
+        await asyncio.sleep(1)  # 控制轮询频率
 
 
 if __name__ == "__main__":
     # get_value_subdata_change()
-    get_values_sync_client()
-    # asyncio.run(get_values_async_client())
+    # while True:
+    #     get_values_sync_client()
+    try:
+        asyncio.run(main_loop())
+    except KeyboardInterrupt:
+        logger.info("程序终止")
