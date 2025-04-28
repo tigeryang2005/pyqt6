@@ -9,7 +9,7 @@ from influxdb_client import Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS
 import json
 
-from Upper_Computer.settings import logger
+from Upper_Computer.settings import logger, COUNT
 
 token = "kDKf6ACTpykjjlX-4TsgmpwcU1MAae7AY6wM91-10wv2UxDPlnY2qZyVfmDT5ld0ytD_w0IC4cRxVn4RuhzFzQ=="
 org = "my-org"
@@ -24,8 +24,6 @@ client_plc = ModbusTcpClient(host=plc_ip, port=plc_port, timeout=1, retries=10)
 client = influxdb_client.InfluxDBClient(url=url, token=token, org=org)
 write_api = client.write_api(write_options=SYNCHRONOUS)
 
-COUNT = 60000
-
 
 def read_plc_modbus(_):
     points = []
@@ -39,9 +37,9 @@ def read_plc_modbus(_):
                 result = client_plc.read_holding_registers(address=0, count=125, slave=1)  # 根据你的需求调整起始地址和数量
                 # time.sleep(0.003)
                 end_time = round((time.time_ns() - start_time) / 1e6, 4)  # 纳秒换算成毫秒
-                point = {datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"): f"每次获取耗时{end_time}毫秒，值：{result.registers[3]}"}
+                point = {datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"): f"每次获取耗时{end_time}毫秒，值：{result.registers[1], result.registers[2], result.registers[3], result.registers[4], result.registers[8]}"}
                 points.append(json.dumps(point, ensure_ascii=False))
-                logger.info(f"{json.dumps(point, ensure_ascii=False)} 当前获取{len(points)}个")
+                # logger.info(f"{json.dumps(point, ensure_ascii=False)} 当前获取{len(points)}个")
                 if len(points) == COUNT:
                     client_plc.close()
                     total_time = round(time.time_ns() - init_time, 4) / 1e6  # 毫秒
