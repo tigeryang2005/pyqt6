@@ -98,7 +98,6 @@ opcua_client = Client(plc_opcua_url)
 
 # opcua异步连接plc
 opcua_async_client = AsyncClient(plc_opcua_url)
-opcua_async_client.connect_socket()
 
 token = "kDKf6ACTpykjjlX-4TsgmpwcU1MAae7AY6wM91-10wv2UxDPlnY2qZyVfmDT5ld0ytD_w0IC4cRxVn4RuhzFzQ=="
 org = "my-org"
