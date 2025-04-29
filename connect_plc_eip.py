@@ -29,7 +29,7 @@ with PLC() as plc:
             point = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')} 每次获取耗时{end_time}毫秒,当前获取个数:{len(points)} 值为:{result_tostring}"
             points.append(point)
             if len(points) == COUNT:
-                total_time = time.time_ns() - round(time.time_ns() - init_time, 4) / 1e6  # 毫秒
+                total_time = round(time.time_ns() - init_time, 4) / 1e6  # 毫秒
                 result = f"{COUNT}次连接共耗时{total_time}毫秒即{round(total_time / 60000, 4)}分,平均连接一次耗时{round(total_time / COUNT, 4)}毫秒"
                 logger.info(result)
                 points.append(result)
