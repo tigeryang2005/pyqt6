@@ -99,5 +99,7 @@ if __name__ == "__main__":
     # 性能统计
     total_time = (time.time_ns() - init_time) / 1e6  # 毫秒
     avg_time = total_time / COUNT
-    logger.info(
-        f"总耗时:{total_time:.4f}ms即{round(total_time / 60000, 4)}分 | 平均耗时:{avg_time:.4f}ms | 总连接次数:{COUNT} | 总读取失败次数:{collector.error_times} | 吞吐量:{COUNT / total_time * 1000:.4f}次/秒")
+    report = f"总耗时:{total_time:.4f}ms即{round(total_time / 60000, 4)}分 | 平均耗时:{avg_time:.4f}ms | 总连接次数:{COUNT} | 总读取失败次数:{collector.error_times} | 吞吐量:{COUNT / total_time * 1000:.4f}次/秒"
+    logger.info(report)
+    with open("output_opc_eip_thread_txt", "a", encoding='utf-8') as f:
+        f.write(report)
