@@ -9,7 +9,7 @@ from influxdb_client import Point, WritePrecision
 from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS
 import json
 
-from Upper_Computer.settings import logger, COUNT
+from settings import logger, COUNT
 
 token = "kDKf6ACTpykjjlX-4TsgmpwcU1MAae7AY6wM91-10wv2UxDPlnY2qZyVfmDT5ld0ytD_w0IC4cRxVn4RuhzFzQ=="
 org = "my-org"

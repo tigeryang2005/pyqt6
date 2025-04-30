@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
 from pylogix import PLC
-from Upper_Computer.settings import logger, COUNT
+from settings import logger, COUNT
 
 
 class PLCBatchReader:

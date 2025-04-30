@@ -6,7 +6,7 @@ from datetime import datetime
 from influxdb_client import WritePrecision
 from opcua.tools import SubHandler
 
-from Upper_Computer.settings import node_id, measurement, write_api, bucket, org, opcua_client, opcua_async_client, \
+from settings import node_id, measurement, write_api, bucket, org, opcua_client, opcua_async_client, \
     logger, COUNT
 
 

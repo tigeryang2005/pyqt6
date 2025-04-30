@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pylogix import PLC
 
-from Upper_Computer.settings import logger, COUNT
+from settings import logger, COUNT
 
 # 建立连接
 with PLC() as plc:
