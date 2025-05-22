@@ -1,3 +1,5 @@
 /app.log
 output_opc_eip_thread_txt
 .idea/
+logs/
+__pycache__/

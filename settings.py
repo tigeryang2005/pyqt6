@@ -5,13 +5,11 @@ from asyncua import Client as AsyncClient
 import logging
 import logging.config
 import os
-from pathlib import Path
 
 COUNT = 30000
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-cur_path = os.path.dirname(os.path.realpath(__file__))  # log_path是存放日志的路径
-log_path = os.path.join(os.path.dirname(cur_path), 'logs')
+# log_path是存放日志的路径
+log_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'logs')
 if not os.path.exists(log_path):
     os.mkdir(log_path)  # 如果不存在这个logs文件夹，就自动创建一个
 
@@ -21,7 +19,7 @@ LOGGING = {
     'formatters': {
         # 日志格式
         'standard': {
-            'format': '[%(asctime)s] [%(filename)s:%(lineno)d] [%(module)s:%(funcName)s] '
+            'format': '[%(asctime)s] [%(filename)s:%(lineno)d]'
                       '[%(levelname)s]- %(message)s'},
         'simple': {  # 简单格式
             'format': '%(levelname)s %(message)s'
