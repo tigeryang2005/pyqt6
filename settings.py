@@ -15,7 +15,7 @@ if not os.path.exists(log_path):
 
 LOGGING = {
     'version': 1,
-    'disable_existing_loggers': True,
+    'disable_existing_loggers': False,  # 建议为 False，避免影响第三方库的日志
     'formatters': {
         # 日志格式
         'standard': {
@@ -31,11 +31,11 @@ LOGGING = {
     # 定义具体处理日志的方式
     'handlers': {
         # 默认记录所有日志
-        'default': {
+        'debug': {
             'level': 'DEBUG',
             # 'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
             'class': 'logging.handlers.RotatingFileHandler',
-            'filename': os.path.join(log_path, 'all.log'),
+            'filename': os.path.join(log_path, 'debug.log'),
             'maxBytes': 1024 * 1024 * 500,  # 文件大小
             'backupCount': 5,  # 备份数
             'formatter': 'standard',  # 输出格式
@@ -76,14 +76,18 @@ LOGGING = {
         'django': {
             'handlers': ['default', 'console'],
             'level': 'DEBUG',
-            'propagate': True
+            'propagate': False
         },
         # # log 调用时需要当作参数传入
         'log': {
-            'handlers': ['error', 'info', 'console', 'default'],
+            'handlers': ['error', 'info', 'console', 'debug'],
             'level': 'DEBUG',
-            'propagate': True
+            'propagate': False
         },
+        '': {
+            'handlers': ['error', 'info', 'debug', 'warn'],
+            'level': 'DEBUG',
+        }
     }
 }
 logging.config.dictConfig(LOGGING)
