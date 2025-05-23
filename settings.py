@@ -41,6 +41,7 @@ LOGGING = {
             'formatter': 'standard',  # 输出格式
             'encoding': 'utf-8',  # 设置默认编码，否则打印出来汉字乱码
         },
+
         # 输出错误日志
         'error': {
             'level': 'ERROR',
@@ -74,7 +75,7 @@ LOGGING = {
     'loggers': {
         # 类型 为 django 处理所有类型的日志， 默认调用
         'django': {
-            'handlers': ['default', 'console'],
+            'handlers': ['debug', 'console'],
             'level': 'DEBUG',
             'propagate': False
         },
@@ -85,7 +86,7 @@ LOGGING = {
             'propagate': False
         },
         '': {
-            'handlers': ['error', 'info', 'debug', 'warn'],
+            'handlers': ['error', 'info', 'debug'],
             'level': 'DEBUG',
         }
     }
