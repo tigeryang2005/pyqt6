@@ -87,12 +87,13 @@ class HighSpeedBuffer:
             logger.warning(" 队列接近上限，考虑调整批量大小或工作线程数")
 
     def get_batch(self, size):
-        if len(self._buffer) == 0:
-            return None
-        batch = list(itertools.islice(self._buffer, 0, size))
-        self._buffer = deque(itertools.islice(self._buffer, size, None),
-                             maxlen=max_queue_size)
-        return batch
+        with self._lock:
+            if len(self._buffer) == 0:
+                return None
+            batch = []
+            for _ in range(min(size, len(self._buffer))):
+                batch.append(self._buffer.popleft())  # 从左端取出并移除
+            return batch
 
 
 data_buffer = HighSpeedBuffer()
@@ -207,7 +208,7 @@ def shutdown(handler1, handler2):
     if batch_len > 0:
         write_batch(batch)  # 直接写入，不使用线程池
     remaining_count += batch_len
-    print(f"已写入 {batch_len} 条数据，剩余 {len(data_buffer._buffer)} 条")
+    print(f"已写入队列中剩余的 {batch_len} 条数据，队列还剩余 {len(data_buffer._buffer)} 条")
 
     # 3. 等待线程池任务完成
     if len(data_buffer._buffer) > 0:
@@ -260,12 +261,13 @@ if __name__ == "__main__":
             count = 0
             for r in res:
                 count = len(r.records)
+            print(f"最后处理剩余数据: {remaining} 条")
             print(f"查询到 {count} 条数据")
 
-            print(f"总写入数据: {count} 条 (含剩余 {remaining} 条)")
+            print(f"总写入数据: {count} 条")
             print(f"运行时间: {duration:.2f}秒")
             print(f"平均QPS: {count / duration:.2f}")
-            print(f"最后处理剩余数据: {remaining} 条")
+
         except Exception as e:
             print(f"查询出错: {e}")
         finally:
