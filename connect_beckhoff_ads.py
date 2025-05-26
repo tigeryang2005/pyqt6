@@ -1,8 +1,10 @@
 import ctypes
+import itertools
 import threading
 import time
 # 优化2: 使用线程安全的deque代替queue
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 
 import influxdb_client
 import pyads
@@ -34,12 +36,12 @@ tag_tianjin = "tianjin"
 client = influxdb_client.InfluxDBClient(url=influxdb_url, token=influxdb_token, org=influxdb_org, timeout=30_000)
 write_api = client.write_api(write_options=SYNCHRONOUS)
 
-# 优化1: 使用更大的批量大小
-batch_size = 5000  # 从2000增加到5000
-max_queue_size = 100000  # 设置最大队列大小防止内存溢出
 
-data_buffer = deque()
-buffer_lock = threading.Lock()
+batch_size = 5000
+MAX_WORKERS = 4  # 根据CPU核心数调整
+max_queue_size = 100000  # 设置最大队列大小防止内存溢出
+writer_running = True
+executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
 
 # 统计变量
 processed_count = 0
@@ -72,6 +74,30 @@ class Person(ctypes.Structure):
 """
 
 
+class HighSpeedBuffer:
+    def __init__(self):
+        self._buffer = deque(maxlen=max_queue_size)
+        self._lock = threading.Lock()
+        self._counter = itertools.count()
+
+    def put(self, item):
+        with self._lock:
+            self._buffer.append(item)
+        if len(self._buffer) > max_queue_size * 0.9:
+            logger.warning(" 队列接近上限，考虑调整批量大小或工作线程数")
+
+    def get_batch(self, size):
+        if len(self._buffer) == 0:
+            return None
+        batch = list(itertools.islice(self._buffer, 0, size))
+        self._buffer = deque(itertools.islice(self._buffer, size, None),
+                             maxlen=max_queue_size)
+        return batch
+
+
+data_buffer = HighSpeedBuffer()
+
+
 class Result(ctypes.Structure):
     _fields_ = [
         (count1, ctypes.c_float),
@@ -89,45 +115,105 @@ def get_result_data(result):
 
 @plc.notification(Result)
 def notification_callback(handle, name, timestamp, value):
-    global processed_count, last_log_time
-
     point = create_point(value)
+    data_buffer.put(point)
 
-    with buffer_lock:
-        data_buffer.append(point)
-        processed_count += 1
-
-        # 定期记录状态
+    # 性能统计
+    global processed_count, last_log_time
+    processed_count += 1
     current_time = time.time()
     if current_time - last_log_time >= 1.0:
-        with buffer_lock:
-            buffer_size = len(data_buffer)
-        logger.info(f"Buffer  size: {buffer_size}, Processed: {processed_count}/s")
+        logger.info(f"队列长度: {len(data_buffer._buffer)}, 处理速度: {processed_count}/s")
         last_log_time = current_time
         processed_count = 0
 
 
+def write_batch(batch, max_retries=2):
+    for attempt in range(max_retries):
+        try:
+            with influxdb_client.InfluxDBClient(
+                    url=influxdb_url,
+                    token=influxdb_token,
+                    org=influxdb_org,
+                    timeout=10_000  # 减少超时时间
+            ) as temp_client:
+                write_api = temp_client.write_api(write_options=SYNCHRONOUS)
+                write_api.write(
+                    bucket=influxdb_bucket,
+                    record=batch,
+                    write_precision=WritePrecision.NS
+                )
+                return True
+        except Exception as e:
+            if attempt == max_retries - 1:
+                logger.error(f" 写入失败(已重试{max_retries}次): {e}")
+                return False
+            time.sleep(0.5 * (attempt + 1))
+
+
 def writer_thread():
-    while True:
-        with buffer_lock:
-            if len(data_buffer) >= batch_size:
-                batch = [data_buffer.popleft() for _ in range(min(batch_size, len(data_buffer)))]
+    while writer_running:
+        try:
+            batch = data_buffer.get_batch(batch_size)
+            if batch:
+                future = executor.submit(write_batch, batch)
+                start = time.time()
+                while not future.done():
+                    if time.time() - start > 5.0:  # 5秒超时
+                        logger.warning("  写入任务超时(5秒)")
+                        break
+                    time.sleep(0.1)  # 短暂休眠避免CPU占用过高
             else:
-                batch = None
+                time.sleep(0.001)
 
-        if batch:
-            try:
-                write_api.write(bucket=influxdb_bucket, record=batch, write_precision=WritePrecision.NS)
-            except Exception as e:
-                logger.error(f"Write  error: {e}")
-                # 重试逻辑可以在这里添加
+                # 每5秒记录状态
+            if time.time() - last_log_time > 5:
+                qsize = len(data_buffer._buffer)
+                active_threads = sum(1 for t in executor._threads if t.is_alive())
+                logger.info(
+                    f"状态: 队列={qsize} 活跃线程={active_threads}/{MAX_WORKERS}"
+                )
 
-        # time.sleep(0.001)  # 短暂休眠避免CPU占用过高
+        except Exception as e:
+            logger.error(f"  写入线程异常: {e}")
+            time.sleep(1)  # 防止错误循环
 
 
-# 启动写入线程
-writer = threading.Thread(target=writer_thread, daemon=True)
-writer.start()
+def shutdown(handler1, handler2):
+    global writer_running
+
+    # 2. 停止写入线程
+    writer_running = False
+    # 2. 停止PLC通知（添加重试机制）
+    for _ in range(3):  # 最多尝试3次
+        try:
+            plc.del_device_notification(handler1, handler2)
+            break
+        except Exception as e:
+            logger.warning(f" 停止通知失败: {e}")
+            time.sleep(0.1)
+    # 3. 等待可能正在执行的回调完成
+    time.sleep(2.0)  # 适当延长等待时间
+
+    # 4. 关闭线程池
+
+    executor.shutdown(wait=True)
+    logger.info(" 已关闭线程池...")
+    # 4. 处理剩余数据
+    print("开始写入队列中剩余的数据...")
+    remaining_count = 0
+    batch = data_buffer.get_batch(batch_size)
+    batch_len = len(batch)
+    if batch_len > 0:
+        write_batch(batch)  # 直接写入，不使用线程池
+    remaining_count += batch_len
+    print(f"已写入 {batch_len} 条数据，剩余 {len(data_buffer._buffer)} 条")
+
+    # 3. 等待线程池任务完成
+    if len(data_buffer._buffer) > 0:
+        logger.warning(f" 超时关闭，剩余 {len(data_buffer._buffer)} 条数据未处理")
+
+    return remaining_count
 
 
 def device_notification():
@@ -138,27 +224,17 @@ def device_notification():
     return notification_handler, user_handler
 
 
-# def write_points():
-#     # global write_num
-#     points = []
-#     for i in range(batch_size):
-#         points.append(q.get())
-#         # write_num += 1
-#     try:
-#         write_api.write(bucket=influxdb_bucket, record=points, write_precision=WritePrecision.NS)
-#         # logger.info(f"{time.time_ns()},{q.qsize(), recevie_num, write_num}")
-#         logger.info(f"{time.time_ns()},{q.qsize()}")
-#     except Exception as e:
-#         logger.error(e)
-
-
 if __name__ == "__main__":
     plc.open()
 
+    # 初始化
+    writer_running = True
+    writer = threading.Thread(target=writer_thread, daemon=True)
+    writer.start()
+
     # 锚定delta_time
     plc_current_time = plc.read_by_name(result_name, Result).currentTime
-    now_time = time.time_ns()
-    delta_time = int(now_time - (plc_current_time * 10))
+    delta_time = int(time.time_ns() - (plc_current_time * 10))
 
     # 订阅数据
     start_time = time.perf_counter()
@@ -166,45 +242,33 @@ if __name__ == "__main__":
 
     try:
         while True:
-            pass
+            time.sleep(1)
     except KeyboardInterrupt:
         print("用户退出")
-        plc.del_device_notification(notification_handler, user_handler)
-        time.sleep(0.5)  # Allow any pending callbacks to complete
+        duration = time.perf_counter() - start_time
+        remaining = shutdown(notification_handler, user_handler)
 
-        print("开始写入队列中剩余的数据...")
-        while True:
-            with buffer_lock:
-                if not data_buffer:
-                    break
-                batch = [data_buffer.popleft() for _ in range(min(batch_size, len(data_buffer)))]
+        query_sql = f'''
+                    from(bucket: "{influxdb_bucket}")
+                      |> range(start: -5m)
+                      |> filter(fn: (r) => r._measurement == "experiment")
+                      |> filter(fn: (r) => r.location  == "tianjin")
+                      |> filter(fn: (r) => r._field == "count1")
+                    '''
+        try:
+            res = client.query_api().query(query_sql, org=influxdb_org)
+            count = 0
+            for r in res:
+                count = len(r.records)
+            print(f"查询到 {count} 条数据")
 
-            try:
-                write_api.write(bucket=influxdb_bucket, record=batch, write_precision=WritePrecision.NS)
-                write_api.flush()
-                print(f"已写入 {len(batch)} 条数据，剩余 {len(data_buffer)} 条")
-            except Exception as e:
-                print(f"写入时出错: {e}")
-            query_sql = f'''
-                        from(bucket: "{influxdb_bucket}")
-                          |> range(start: -20m)
-                          |> filter(fn: (r) => r._measurement == "experiment")
-                          |> filter(fn: (r) => r.location  == "tianjin")
-                          |> filter(fn: (r) => r._field == "count1")
-                        '''
-            try:
-                res = client.query_api().query(query_sql, org=influxdb_org)
-                for r in res:
-                    # print(r)
-                    # print(r.columns)
-                    # print(r.records)
-                    count = len(r.records)
-                print(f"查询到 {count} 条数据")
-                print(
-                    f"运行：{time.perf_counter() - start_time:.2f}秒, QPS: {round(count / (time.perf_counter() - start_time), 2)}")
-            except Exception as e:
-                print(f"查询出错: {e}")
-        write_api.close()
-        # Cleanup
-        client.close()
-        plc.close()
+            print(f"总写入数据: {count} 条 (含剩余 {remaining} 条)")
+            print(f"运行时间: {duration:.2f}秒")
+            print(f"平均QPS: {count / duration:.2f}")
+            print(f"最后处理剩余数据: {remaining} 条")
+        except Exception as e:
+            print(f"查询出错: {e}")
+        finally:
+            # Cleanup
+            client.close()
+            plc.close()

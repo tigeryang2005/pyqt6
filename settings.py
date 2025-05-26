@@ -41,7 +41,26 @@ LOGGING = {
             'formatter': 'standard',  # 输出格式
             'encoding': 'utf-8',  # 设置默认编码，否则打印出来汉字乱码
         },
-
+        'warning': {
+            'level': 'WARNING',
+            # 'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(log_path, 'warning.log'),
+            'maxBytes': 1024 * 1024 * 500,  # 文件大小
+            'backupCount': 5,  # 备份数
+            'formatter': 'standard',  # 输出格式
+            'encoding': 'utf-8',  # 设置默认编码，否则打印出来汉字乱码
+        },
+        'critical': {
+            'level': 'CRITICAL',
+            # 'class': 'concurrent_log_handler.ConcurrentRotatingFileHandler',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(log_path, 'critical.log'),
+            'maxBytes': 1024 * 1024 * 500,  # 文件大小
+            'backupCount': 5,  # 备份数
+            'formatter': 'standard',  # 输出格式
+            'encoding': 'utf-8',  # 设置默认编码，否则打印出来汉字乱码
+        },
         # 输出错误日志
         'error': {
             'level': 'ERROR',
@@ -86,9 +105,9 @@ LOGGING = {
             'propagate': False
         },
         '': {
-            'handlers': ['error', 'info', 'debug'],
+            'handlers': ['error', 'warning', 'info', 'debug'],
             'level': 'DEBUG',
-            'propagete': False
+            'propagate': False
         }
     }
 }
