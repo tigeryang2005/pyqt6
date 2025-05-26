@@ -88,6 +88,7 @@ LOGGING = {
         '': {
             'handlers': ['error', 'info', 'debug'],
             'level': 'DEBUG',
+            'propagete': False
         }
     }
 }
