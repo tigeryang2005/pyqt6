@@ -1,21 +1,13 @@
 import ctypes
-import json
-import struct
-import sys
-from datetime import datetime
-import os
-import queue
+import threading
+import time
+# 优化2: 使用线程安全的deque代替queue
+from collections import deque
 
 import influxdb_client
 import pyads
-
-import time
-import asyncio
-from influxdb_client import WritePrecision, Point
-from influxdb_client.client.exceptions import InfluxDBError
-from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS
-
-from ctypes import sizeof
+from influxdb_client import WritePrecision
+from influxdb_client.client.write_api import SYNCHRONOUS
 
 from settings import logger
 
@@ -39,13 +31,35 @@ influxdb_url = "http://localhost:8086"
 measurement = "experiment"
 tag_location = "location"
 tag_tianjin = "tianjin"
-client = influxdb_client.InfluxDBClient(url=influxdb_url, token=influxdb_token, org=influxdb_org)
-write_api = client.write_api(write_options=ASYNCHRONOUS)
-write_num = 0
-recevie_num = 0
+client = influxdb_client.InfluxDBClient(url=influxdb_url, token=influxdb_token, org=influxdb_org, timeout=30_000)
+write_api = client.write_api(write_options=SYNCHRONOUS)
 
-q = queue.Queue(maxsize=5000)
-batch_size = 2000
+# 优化1: 使用更大的批量大小
+batch_size = 5000  # 从2000增加到5000
+max_queue_size = 100000  # 设置最大队列大小防止内存溢出
+
+data_buffer = deque()
+buffer_lock = threading.Lock()
+
+# 统计变量
+processed_count = 0
+last_log_time = time.time()
+
+
+def create_point(value):
+    return {
+        "measurement": measurement,
+        "tags": {tag_location: tag_tianjin},
+        "fields": {
+            count1: value.count1,
+            count2: value.count2,
+            count3: value.count3,
+            count4: value.count4
+        },
+        "time": value.currentTime * 10 + delta_time
+    }
+
+
 """
 import ctypes
 
@@ -68,29 +82,52 @@ class Result(ctypes.Structure):
     ]
 
 
+def get_result_data(result):
+    result_data = {count1: result.count1, count2: result.count2, count3: result.count3, count4: result.count4}
+    return result_data
+
+
 @plc.notification(Result)
 def notification_callback(handle, name, timestamp, value):
-    global recevie_num
-    recevie_num = recevie_num + 1
+    global processed_count, last_log_time
 
-    result_value = value
-    result_field = {}
-    for field_name, field_type in result_value._fields_:
-        result_field[field_name] = getattr(result_value, field_name)
-    point_time = result_field[current_time] * 10 + delta_time
-    result_field.pop(current_time)
+    point = create_point(value)
 
-    point = {
-        "measurement": measurement,
-        "tags": {tag_location: tag_tianjin},
-        "fields": result_field,
-        "time": point_time
-    }
-    # logger.debug(f"{point_time},{json.dumps(point, ensure_ascii=False)}")
-    q.put(point)
-    if q.qsize() > batch_size:
-        logger.info(f"{time.time_ns()},{q.qsize(), recevie_num, write_num}")
-        write_points()
+    with buffer_lock:
+        data_buffer.append(point)
+        processed_count += 1
+
+        # 定期记录状态
+    current_time = time.time()
+    if current_time - last_log_time >= 1.0:
+        with buffer_lock:
+            buffer_size = len(data_buffer)
+        logger.info(f"Buffer  size: {buffer_size}, Processed: {processed_count}/s")
+        last_log_time = current_time
+        processed_count = 0
+
+
+def writer_thread():
+    while True:
+        with buffer_lock:
+            if len(data_buffer) >= batch_size:
+                batch = [data_buffer.popleft() for _ in range(min(batch_size, len(data_buffer)))]
+            else:
+                batch = None
+
+        if batch:
+            try:
+                write_api.write(bucket=influxdb_bucket, record=batch, write_precision=WritePrecision.NS)
+            except Exception as e:
+                logger.error(f"Write  error: {e}")
+                # 重试逻辑可以在这里添加
+
+        # time.sleep(0.001)  # 短暂休眠避免CPU占用过高
+
+
+# 启动写入线程
+writer = threading.Thread(target=writer_thread, daemon=True)
+writer.start()
 
 
 def device_notification():
@@ -101,29 +138,30 @@ def device_notification():
     return notification_handler, user_handler
 
 
-def write_points():
-    global write_num
-    points = []
-    for i in range(batch_size):
-        points.append(q.get())
-        write_num += 1
-    try:
-        write_api.write(bucket=influxdb_bucket, record=points, write_precision=WritePrecision.NS)
-    except Exception as e:
-        logger.error(e)
+# def write_points():
+#     # global write_num
+#     points = []
+#     for i in range(batch_size):
+#         points.append(q.get())
+#         # write_num += 1
+#     try:
+#         write_api.write(bucket=influxdb_bucket, record=points, write_precision=WritePrecision.NS)
+#         # logger.info(f"{time.time_ns()},{q.qsize(), recevie_num, write_num}")
+#         logger.info(f"{time.time_ns()},{q.qsize()}")
+#     except Exception as e:
+#         logger.error(e)
 
 
 if __name__ == "__main__":
-    start_time = time.perf_counter()
     plc.open()
 
-    result_data = plc.read_by_name(result_name, Result)
     # 锚定delta_time
-    plc_current_time = result_data.currentTime
+    plc_current_time = plc.read_by_name(result_name, Result).currentTime
     now_time = time.time_ns()
     delta_time = int(now_time - (plc_current_time * 10))
 
     # 订阅数据
+    start_time = time.perf_counter()
     notification_handler, user_handler = device_notification()
 
     try:
@@ -135,36 +173,38 @@ if __name__ == "__main__":
         time.sleep(0.5)  # Allow any pending callbacks to complete
 
         print("开始写入队列中剩余的数据...")
-        processed_any = False
         while True:
+            with buffer_lock:
+                if not data_buffer:
+                    break
+                batch = [data_buffer.popleft() for _ in range(min(batch_size, len(data_buffer)))]
+
             try:
-                point = q.get(timeout=1.0)
-                points = [point]
-                for _ in range(min(batch_size - 1, q.qsize())):  # Get remaining available points
-                    try:
-                        points.append(q.get_nowait())
-                    except queue.Empty:
-                        break
-
-                write_api.write(bucket=influxdb_bucket, record=points, write_precision=WritePrecision.NS)
-                write_num += len(points)
-                processed_any = True
-                print(f"已写入 {len(points)} 条数据，剩余 {q.qsize()}  条")
-            except queue.Empty:
-                if processed_any:
-                    print("队列已空，写入完成")
-                else:
-                    print("队列中无数据")
-                break
+                write_api.write(bucket=influxdb_bucket, record=batch, write_precision=WritePrecision.NS)
+                write_api.flush()
+                print(f"已写入 {len(batch)} 条数据，剩余 {len(data_buffer)} 条")
             except Exception as e:
-                logger.error(f" 写入时出错: {e}")
-                break
-
-        print(
-            f"运行：{time.perf_counter() - start_time:.2f}秒，收到{recevie_num}条数据，写入{write_num}条数据，qps：{round(write_num / (time.perf_counter() - start_time), 2)}")
-
-        # Cleanup
-        write_api.flush()
+                print(f"写入时出错: {e}")
+            query_sql = f'''
+                        from(bucket: "{influxdb_bucket}")
+                          |> range(start: -20m)
+                          |> filter(fn: (r) => r._measurement == "experiment")
+                          |> filter(fn: (r) => r.location  == "tianjin")
+                          |> filter(fn: (r) => r._field == "count1")
+                        '''
+            try:
+                res = client.query_api().query(query_sql, org=influxdb_org)
+                for r in res:
+                    # print(r)
+                    # print(r.columns)
+                    # print(r.records)
+                    count = len(r.records)
+                print(f"查询到 {count} 条数据")
+                print(
+                    f"运行：{time.perf_counter() - start_time:.2f}秒, QPS: {round(count / (time.perf_counter() - start_time), 2)}")
+            except Exception as e:
+                print(f"查询出错: {e}")
         write_api.close()
+        # Cleanup
         client.close()
         plc.close()
