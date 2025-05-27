@@ -27,6 +27,26 @@ LOGGING = {
     },
     # 过滤
     'filters': {
+        'require_debug': {
+            '()': 'logging.Filter',
+            'name': 'debug'
+        },
+        'require_info': {
+            '()': 'logging.Filter',
+            'name': 'info'
+        },
+        'require_warning': {
+            '()': 'logging.Filter',
+            'name': 'warning'
+        },
+        'require_critical': {
+            '()': 'logging.Filter',
+            'name': 'critical'
+        },
+        'require_error': {
+            '()': 'logging.Filter',
+            'name': 'error'
+        },
     },
     # 定义具体处理日志的方式
     'handlers': {
@@ -40,6 +60,7 @@ LOGGING = {
             'backupCount': 5,  # 备份数
             'formatter': 'standard',  # 输出格式
             'encoding': 'utf-8',  # 设置默认编码，否则打印出来汉字乱码
+            'filters': ['require_debug']
         },
         'warning': {
             'level': 'WARNING',
@@ -50,6 +71,7 @@ LOGGING = {
             'backupCount': 5,  # 备份数
             'formatter': 'standard',  # 输出格式
             'encoding': 'utf-8',  # 设置默认编码，否则打印出来汉字乱码
+            'filters': ['require_warning']
         },
         'critical': {
             'level': 'CRITICAL',
@@ -60,6 +82,7 @@ LOGGING = {
             'backupCount': 5,  # 备份数
             'formatter': 'standard',  # 输出格式
             'encoding': 'utf-8',  # 设置默认编码，否则打印出来汉字乱码
+            'filters': ['require_critical']
         },
         # 输出错误日志
         'error': {
@@ -71,6 +94,7 @@ LOGGING = {
             'backupCount': 5,  # 备份数
             'formatter': 'standard',  # 输出格式
             'encoding': 'utf-8',  # 设置默认编码
+            'filters': ['require_error']
         },
         # 控制台输出
         'console': {
