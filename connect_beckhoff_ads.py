@@ -165,11 +165,6 @@ class DataCollector:
                 batch = self.data_buffer.get_batch(BATCH_SIZE)
                 if batch:
                     self.write_batch(batch)
-                # 每5秒记录状态
-                if time.time() - self.last_log_time > 5:
-                    qsize = len(self.data_buffer._buffer)
-                    active_threads = sum(1 for t in self.executor._threads if t.is_alive())
-                    logger.info(f" 系统状态: 队列长度={qsize} 活跃线程数={active_threads}/{MAX_WORKERS}")
             except Exception as e:
                 logger.error(f" 写入线程异常: {str(e)}")
                 time.sleep(1)
