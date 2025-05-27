@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import influxdb_client
 import pyads
 from influxdb_client import WritePrecision
-from influxdb_client.client.write_api import SYNCHRONOUS
+from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS
 
 from settings import logger
 
@@ -32,9 +32,9 @@ TAG_LOCATION = "location"
 TAG_TIANJIN = "tianjin"
 
 # 性能配置
-BATCH_SIZE = 5000
+BATCH_SIZE = 20_000
 MAX_WORKERS = 4
-MAX_QUEUE_SIZE = 100000
+MAX_QUEUE_SIZE = 100_000
 
 
 class Result(ctypes.Structure):
@@ -125,7 +125,7 @@ class DataCollector:
                         org=INFLUXDB_ORG,
                         timeout=10000
                 ) as temp_client:
-                    write_api = temp_client.write_api(write_options=SYNCHRONOUS)
+                    write_api = temp_client.write_api(write_options=ASYNCHRONOUS)
                     write_api.write(
                         bucket=INFLUXDB_BUCKET,
                         record=batch,
@@ -201,7 +201,7 @@ class DataCollector:
             ctypes.sizeof(Result),
             trans_mode=pyads.ADSTRANS_SERVERONCHA,
             max_delay=50,
-            cycle_time=0.5
+            cycle_time=0.1
         )
         decorated_callback = self.plc.notification(Result)(self.notification_callback)
         return self.plc.add_device_notification(RESULT_NAME, atr, decorated_callback)
