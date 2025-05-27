@@ -1,4 +1,5 @@
 import ctypes
+import sys
 import threading
 import time
 from collections import deque
@@ -211,6 +212,21 @@ class DataCollector:
 
         # 初始化时间差
         plc_current_time = self.plc.read_by_name(RESULT_NAME, Result).currentTime
+        # TODO: File "D:\pythonProjects\Upper_computer\venv\Lib\site-packages\pyads\connection.py", line 661,
+        #  in read_structure_by_name return dict_from_bytes(values, structure_def, array_size=array_size)
+        #  plc_current_time1 = self.plc.read_structure_by_name(data_name=RESULT_NAME, structure_def=Result._fields_,
+        #  array_size=2, structure_size=ctypes.sizeof(Result) ) print(plc_current_time, plc_current_time1)
+        # File"D:\pythonProjects\Upper_computer\venv\Lib\site-packages\pyads\ads.py", line
+        # 318, in dict_from_bytes
+        # var, plc_datatype, size, str_len = item  # type: ignore
+        # ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^ ^
+        # ValueError: not enough values to unpack(expected4, got 2)
+        # 可能是从bytes到截取的时候 每次截取的长度不对
+        # plc_current_time1 = self.plc.read_structure_by_name(data_name=RESULT_NAME,
+        #                                                     structure_def=Result._fields_,
+        #                                                     structure_size=ctypes.sizeof(Result),
+        #                                                     )
+        # print(plc_current_time, plc_current_time1)
         self.delta_time = int(time.time_ns() - (plc_current_time * 10))
 
         # 启动写入线程
