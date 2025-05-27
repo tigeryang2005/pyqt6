@@ -90,15 +90,14 @@ class DataCollector:
 
     def create_point(self, value):
         """创建InfluxDB数据点"""
+        point_fields = {}
+        for field, _ in value._fields_:
+            point_fields[field] = getattr(value, field)
+        point_fields.pop(CURRENT_TIME)
         return {
             "measurement": MEASUREMENT,
             "tags": {TAG_LOCATION: TAG_TIANJIN},
-            "fields": {
-                COUNT1: value.count1,
-                COUNT2: value.count2,
-                COUNT3: value.count3,
-                COUNT4: value.count4
-            },
+            "fields": point_fields,
             "time": value.currentTime * 10 + self.delta_time
         }
 
@@ -233,7 +232,7 @@ class DataCollector:
             # 查询统计数据
             query_sql = f'''
                     from(bucket: "{INFLUXDB_BUCKET}")
-                      |> range(start: -5m)
+                      |> range(start: -5h)
                       |> filter(fn: (r) => r._measurement == "{MEASUREMENT}")
                       |> filter(fn: (r) => r.{TAG_LOCATION} == "{TAG_TIANJIN}")
                       |> filter(fn: (r) => r._field == "{COUNT1}")
@@ -241,7 +240,6 @@ class DataCollector:
             res = self.client.query_api().query(query_sql, org=INFLUXDB_ORG).to_values(
                 # columns=["_time", "_measurement", "_value"]
             )
-            # print(res)
             total_count = len(res)
             try:
                 res = self.client.query_api().query(query_sql, org=INFLUXDB_ORG)
