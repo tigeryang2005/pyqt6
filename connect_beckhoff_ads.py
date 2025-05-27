@@ -8,7 +8,8 @@ from concurrent.futures import ThreadPoolExecutor
 import influxdb_client
 import pyads
 from influxdb_client import WritePrecision
-from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS
+from influxdb_client.client.exceptions import InfluxDBError
+from influxdb_client.client.write_api import SYNCHRONOUS, ASYNCHRONOUS, WriteOptions, WriteType
 
 from settings import logger
 
@@ -33,9 +34,8 @@ TAG_LOCATION = "location"
 TAG_TIANJIN = "tianjin"
 
 # 性能配置
-BATCH_SIZE = 20_000
-MAX_WORKERS = 4
-MAX_QUEUE_SIZE = 100_000
+BATCH_SIZE = 5_000
+MAX_QUEUE_SIZE = 1000_000
 
 
 class Result(ctypes.Structure):
@@ -47,6 +47,21 @@ class Result(ctypes.Structure):
         (COUNT4, ctypes.c_bool),
         (CURRENT_TIME, ctypes.c_int64)
     ]
+
+
+class BatchingCallback(object):
+
+    def success(self, conf: (str, str, str), data: str):
+        # logger.debug(f"Written batch: {conf}, data: {data}")
+        logger.debug(f"Written batch: {conf}")
+
+    def error(self, conf: (str, str, str), data: str, exception: InfluxDBError):
+        # print(f"Cannot write batch: {conf}, data: {data} due: {exception}")
+        logger.error(f"Written batch: {conf},due:{exception}")
+
+    def retry(self, conf: (str, str, str), data: str, exception: InfluxDBError):
+        # print(f"Retryable error occurs for batch: {conf}, data: {data} retry: {exception}")
+        logger.warning(f"Retryable error occurs for batch: {conf}, retry: {exception}")
 
 
 class HighSpeedBuffer:
@@ -82,8 +97,17 @@ class DataCollector:
             org=INFLUXDB_ORG,
             timeout=30000
         )
+        self.write_options = WriteOptions(write_type=WriteType.batching,
+                                          batch_size=BATCH_SIZE,  # 每批写入的数据点数量
+                                          flush_interval=1000,  # 毫秒，批量写入的间隔时间
+                                          jitter_interval=0,  # 毫秒，写入时间抖动
+                                          retry_interval=5000,  # 毫秒，重试间隔
+                                          max_retries=3,  # 最大重试次数
+                                          max_retry_delay=180000,  # 毫秒，最大重试延迟
+                                          max_close_wait=300000,  # 毫秒，关闭等待时间
+                                          exponential_base=2  # 指数退避基数
+                                          )
         self.data_buffer = HighSpeedBuffer()
-        self.executor = ThreadPoolExecutor(max_workers=MAX_WORKERS)
         self.writer_running = True
         self.processed_count = 0
         self.last_log_time = time.time()
@@ -116,22 +140,18 @@ class DataCollector:
             self.processed_count = 0
 
     def write_batch(self, batch, max_retries=2):
+        callback = BatchingCallback()
         """写入一批数据到InfluxDB"""
         for attempt in range(max_retries):
             try:
-                with influxdb_client.InfluxDBClient(
-                        url=INFLUXDB_URL,
-                        token=INFLUXDB_TOKEN,
-                        org=INFLUXDB_ORG,
-                        timeout=10000
-                ) as temp_client:
-                    write_api = temp_client.write_api(write_options=ASYNCHRONOUS)
-                    write_api.write(
-                        bucket=INFLUXDB_BUCKET,
-                        record=batch,
-                        write_precision=WritePrecision.NS
-                    )
-                    return True
+                with self.client.write_api(write_options=self.write_options,
+                                           success_callback=callback.success,
+                                           error_callback=callback.error,
+                                           retry_callback=callback.retry) as write_api:
+                    write_api.write(bucket=INFLUXDB_BUCKET,
+                                    record=batch,
+                                    write_precision=WritePrecision.NS)
+                return True
             except Exception as e:
                 if attempt == max_retries - 1:
                     logger.error(f" 写入失败(已重试{max_retries}次): {str(e)}")
@@ -144,22 +164,12 @@ class DataCollector:
             try:
                 batch = self.data_buffer.get_batch(BATCH_SIZE)
                 if batch:
-                    future = self.executor.submit(self.write_batch, batch)
-                    start = time.time()
-                    while not future.done():
-                        if time.time() - start > 5.0:
-                            logger.warning(" 写入任务超时(5秒)")
-                            break
-                        time.sleep(0.1)
-                else:
-                    time.sleep(0.001)
-
-                    # 每5秒记录状态
+                    self.write_batch(batch)
+                # 每5秒记录状态
                 if time.time() - self.last_log_time > 5:
                     qsize = len(self.data_buffer._buffer)
                     active_threads = sum(1 for t in self.executor._threads if t.is_alive())
                     logger.info(f" 系统状态: 队列长度={qsize} 活跃线程数={active_threads}/{MAX_WORKERS}")
-
             except Exception as e:
                 logger.error(f" 写入线程异常: {str(e)}")
                 time.sleep(1)
@@ -176,12 +186,7 @@ class DataCollector:
             except Exception as e:
                 logger.warning(f" 停止通知失败: {str(e)}")
                 time.sleep(0.1)
-
-        time.sleep(2.0)  # 等待回调完成
-
-        # 关闭线程池
-        self.executor.shutdown(wait=True)
-        logger.info(" 线程池已关闭...")
+        time.sleep(1.0)  # 等待回调完成
 
         # 处理剩余数据
         remaining_count = 0

@@ -133,7 +133,7 @@ LOGGING = {
         # # log 调用时需要当作参数传入
         'log': {
             'handlers': ['console', 'debug', 'info', 'warning', 'error', 'critical'],
-            'level': 'DEBUG',
+            'level': 'INFO',
             'propagate': False
         },
         '': {
