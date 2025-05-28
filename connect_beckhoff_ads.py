@@ -252,13 +252,13 @@ class DataCollector:
                       |> filter(fn: (r) => r._measurement == "{MEASUREMENT}")
                       |> filter(fn: (r) => r.{TAG_LOCATION} == "{TAG_TIANJIN}")
                       |> filter(fn: (r) => r._field == "{COUNT1}")
+                      |> count()
                 '''
             res = self.client.query_api().query(query_sql, org=INFLUXDB_ORG).to_values(
-                # columns=["_time", "_measurement", "_value"]
+                columns=["_time", "_measurement", "_value"]
             )
-            total_count = len(res)
+            total_count = int(res[0][2])
             try:
-                res = self.client.query_api().query(query_sql, org=INFLUXDB_ORG)
                 print(f"\n===== 运行统计 =====")
                 print(f"最后处理剩余数据: {remaining}条")
                 print(f"总写入数据量: {total_count}条")
