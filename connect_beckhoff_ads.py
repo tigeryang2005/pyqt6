@@ -69,21 +69,18 @@ class HighSpeedBuffer:
 
     def __init__(self):
         self._buffer = deque(maxlen=MAX_QUEUE_SIZE)
-        self._lock = threading.Lock()
 
     def put(self, item):
         """添加数据到缓冲区"""
-        with self._lock:
-            self._buffer.append(item)
-            if len(self._buffer) > MAX_QUEUE_SIZE * 0.9:
-                logger.warning(" 队列接近上限，请考虑调整批量大小或增加工作线程")
+        self._buffer.append(item)
+        if len(self._buffer) > MAX_QUEUE_SIZE * 0.9:
+            logger.warning(" 队列接近上限，请考虑调整批量大小或增加工作线程")
 
     def get_batch(self, size):
         """从缓冲区获取一批数据"""
-        with self._lock:
-            if not self._buffer:
-                return None
-            return [self._buffer.popleft() for _ in range(min(size, len(self._buffer)))]
+        if not self._buffer:
+            return None
+        return [self._buffer.popleft() for _ in range(min(size, len(self._buffer)))]
 
 
 class DataCollector:
